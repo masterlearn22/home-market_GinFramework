@@ -2,8 +2,9 @@ package main
 
 import (
 	"fmt"
-	"os"
+	// "os"
 	config "home-market/internal/config"
+	"github.com/gin-gonic/gin"
 )
 
 func main() {
@@ -12,13 +13,13 @@ func main() {
 	//1. Load .env file
 	config.LoadEnv()
 
-	host := os.Getenv("DB_HOST")
+	// host := os.Getenv("DB_HOST")
 
-    if host == "" {
-        fmt.Println(".env gagal diload atau DB_HOST tidak ditemukan")
-    } else {
-        fmt.Println(".env berhasil diload. DB_HOST =", host)
-    }
+    // if host == "" {
+    //     fmt.Println(".env gagal diload atau DB_HOST tidak ditemukan")
+    // } else {
+    //     fmt.Println(".env berhasil diload. DB_HOST =", host)
+    // }
 
 	//2. Connect to Database
 
@@ -31,6 +32,10 @@ func main() {
 	config.ConnectMongo()
 	fmt.Println("MongoDB connection closed.")
 	
-
-	
+	//3. Setup Gin App
+	app := config.SetupGin()
+	app.GET("/ping", func(c *gin.Context) {
+		c.JSON(200, gin.H{"message": "pong"})
+	})
+	app.Run(":8080")
 }
