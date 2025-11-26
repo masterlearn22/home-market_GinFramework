@@ -2,13 +2,12 @@ package main
 
 import (
 	"fmt"
-	// "os"
 	config "home-market/internal/config"
 	"home-market/internal/delivery/http/route"
 )
 
 func main() {
-	fmt.Println("Hello, World!")
+	// fmt.Println("Hello, World!")
 
 	//1. Load .env file
 	config.LoadEnv()
@@ -23,10 +22,14 @@ func main() {
 	config.ConnectMongo()
 	
 	//3. Setup Gin App
-	app := config.SetupGin()
+	var app = config.SetupGin()
 
 	//4. Initialize Routes
 	route.SetupPostgres(app, config.PostgresDB)
 	fmt.Println("Setup route berhasil")
+
+	//5. Run the server
+	config.SetupServer(app)
+
 
 }
