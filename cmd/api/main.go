@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"home-market/internal/config"
+	config "home-market/internal/config"
 )
 
 func main() {
@@ -19,5 +19,18 @@ func main() {
     } else {
         fmt.Println(".env berhasil diload. DB_HOST =", host)
     }
+
+	//2. Connect to Database
+
+	// Connect to PostgreSQL
+	config.ConnectPostgres()
+	defer config.PostgresDB.Close()
+	fmt.Println("PostgreSQL connection closed.")
+
+	// Connect to MongoDB
+	config.ConnectMongo()
+	fmt.Println("MongoDB connection closed.")
+	
+
 	
 }
