@@ -39,7 +39,7 @@ type AuthService struct {
 func NewAuthService(userRepo repo.UserRepository, defaultRoleID uuid.UUID) *AuthService {
 	return &AuthService{
 		userRepo:      userRepo,
-		defaultRoleID: defaultRoleID, // misal role "buyer" dari tabel roles
+		defaultRoleID: defaultRoleID,
 	}
 }
 
@@ -108,32 +108,44 @@ func (s *AuthService) Register(input RegisterInput) (*entity.UserResp, error) {
 		return nil, err
 	}
 
-	// buat entity user
+	// role buyer *wajib* digunakan
+	roleID := s.defaultRoleID
+	if roleID == uuid.Nil {
+		return nil, errors.New("default role 'buyer' is not set")
+	}
+
 	user := &entity.User{
 		ID:           uuid.New(),
 		Username:     input.Username,
 		Email:        input.Email,
 		FullName:     input.FullName,
 		PasswordHash: hashed,
-		RoleID:       s.defaultRoleID, // role default (buyer) – nanti kamu set dari main
+		RoleID:       roleID, 
 		IsActive:     true,
 	}
 
-	// simpan ke DB
+	// simpan user
 	if err := s.userRepo.CreateUser(user); err != nil {
 		return nil, err
+	}
+
+	// dapatkan nama role buyer
+	_, roleName, err := s.userRepo.GetByUsername(user.Username)
+	if err != nil {
+		roleName = "buyer" // fallback
 	}
 
 	resp := &entity.UserResp{
 		ID:          user.ID,
 		Username:    user.Username,
 		FullName:    user.FullName,
-		Role:        "",        // boleh diisi roleName kalau mau ambil dari tabel roles
-		Permissions: []string{}, // diisi nanti kalau perlu
+		Role:        roleName,     // SUDAH BENAR → string buyer
+		Permissions: []string{},   // bisa ambil kalau mau
 	}
 
 	return resp, nil
 }
+
 
 // ===== REFRESH & PROFILE (tetap sama dengan versi sebelumnya, tidak aku ulang semua) =====
 

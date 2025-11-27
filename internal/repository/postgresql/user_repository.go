@@ -3,14 +3,14 @@ package repository
 import (
 	"database/sql"
 	"errors"
-	entity "home-market/internal/domain"
 
+	entity "home-market/internal/domain"
 	"github.com/google/uuid"
 )
 
 type UserRepository interface {
-    GetByUsername(username string) (*entity.User, string, error)
-    GetPermissionsByRoleID(roleID uuid.UUID) ([]string, error)
+	GetByUsername(username string) (*entity.User, string, error)
+	GetPermissionsByRoleID(roleID uuid.UUID) ([]string, error)
 	GetByID(id uuid.UUID) (*entity.User, error)
 	GetByEmail(email string) (*entity.User, error)
 	CreateUser(user *entity.User) error
@@ -24,7 +24,6 @@ func NewUserRepository(db *sql.DB) UserRepository {
 	return &userRepository{db: db}
 }
 
-// GetByUsername mengambil data user beserta nama role-nya via JOIN
 func (r *userRepository) GetByUsername(username string) (*entity.User, string, error) {
 	var user entity.User
 	var roleName string
@@ -32,16 +31,14 @@ func (r *userRepository) GetByUsername(username string) (*entity.User, string, e
 	query := `
 		SELECT 
 			u.id, u.username, u.email, u.password_hash, 
-			u.full_name, u.role_id, u.is_active, 
-			r.name
+			u.full_name, u.role_id, u.is_active,
+			TRIM(r.name) AS roleName
 		FROM users u
 		JOIN roles r ON u.role_id = r.id
 		WHERE u.username = $1
 	`
 
-	row := r.db.QueryRow(query, username)
-
-	err := row.Scan(
+	err := r.db.QueryRow(query, username).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -49,11 +46,11 @@ func (r *userRepository) GetByUsername(username string) (*entity.User, string, e
 		&user.FullName,
 		&user.RoleID,
 		&user.IsActive,
-		&roleName,      // 🔥 Scan ke variabel lokal, bukan struct
+		&roleName,
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, "", errors.New("user not found")
 		}
 		return nil, "", err
@@ -62,9 +59,6 @@ func (r *userRepository) GetByUsername(username string) (*entity.User, string, e
 	return &user, roleName, nil
 }
 
-
-// GetPermissionsByRoleID mengambil list permission string berdasarkan Role ID
-// Ini implementasi tabel permissions dan role_permissions [cite: 51, 68]
 func (r *userRepository) GetPermissionsByRoleID(roleID uuid.UUID) ([]string, error) {
 	query := `
 		SELECT p.name 
@@ -79,7 +73,7 @@ func (r *userRepository) GetPermissionsByRoleID(roleID uuid.UUID) ([]string, err
 	}
 	defer rows.Close()
 
-	var permissions []string
+	permissions := []string{}
 	for rows.Next() {
 		var permName string
 		if err := rows.Scan(&permName); err != nil {
@@ -100,9 +94,7 @@ func (r *userRepository) GetByID(id uuid.UUID) (*entity.User, error) {
 		WHERE id = $1
 	`
 
-	row := r.db.QueryRow(query, id)
-
-	err := row.Scan(
+	err := r.db.QueryRow(query, id).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -110,9 +102,8 @@ func (r *userRepository) GetByID(id uuid.UUID) (*entity.User, error) {
 		&user.RoleID,
 		&user.IsActive,
 	)
-
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, errors.New("user not found")
 		}
 		return nil, err
@@ -130,8 +121,7 @@ func (r *userRepository) GetByEmail(email string) (*entity.User, error) {
 		WHERE email = $1
 	`
 
-	row := r.db.QueryRow(query, email)
-	err := row.Scan(
+	err := r.db.QueryRow(query, email).Scan(
 		&user.ID,
 		&user.Username,
 		&user.Email,
@@ -141,8 +131,8 @@ func (r *userRepository) GetByEmail(email string) (*entity.User, error) {
 		&user.IsActive,
 	)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, errors.New("user not found")
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil // <--- lebih singkat untuk mengecek "email available"
 		}
 		return nil, err
 	}
@@ -155,8 +145,8 @@ func (r *userRepository) CreateUser(user *entity.User) error {
 		INSERT INTO users (id, username, email, password_hash, full_name, role_id, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
 	`
-	_, err := r.db.Exec(
-		query,
+
+	_, err := r.db.Exec(query,
 		user.ID,
 		user.Username,
 		user.Email,
@@ -165,5 +155,6 @@ func (r *userRepository) CreateUser(user *entity.User) error {
 		user.RoleID,
 		user.IsActive,
 	)
+
 	return err
 }

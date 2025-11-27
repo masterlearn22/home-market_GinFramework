@@ -27,8 +27,18 @@ func ConnectPostgres() {
 	if err != nil {
 		log.Fatal("Failed to connect to PostgreSQL:", err)
 	}
-	fmt.Println("Connected to PostgreSQL")
-	fmt.Println("DB Postgresql :", os.Getenv("DB_NAME"))
+	var host, port, dbname, user, schema string
+
+	PostgresDB.QueryRow("SELECT inet_server_addr(), inet_server_port(), current_database(), current_user, current_schema()").
+		Scan(&host, &port, &dbname, &user, &schema)
+
+	fmt.Println("🔥 Go connected to:")
+	fmt.Println("Host  :", host)
+	fmt.Println("Port  :", port)
+	fmt.Println("DB    :", dbname)
+	fmt.Println("User  :", user)
+	fmt.Println("Schema:", schema)
+
 }
 
 var MongoDB *mongo.Database

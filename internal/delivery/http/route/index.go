@@ -16,8 +16,6 @@ func SetupRoute(app *gin.Engine, db *sql.DB) {
 	err := db.QueryRow(`SELECT id FROM roles WHERE name = $1`, "buyer").Scan(&defaultRoleID)
 	if err != nil {
 		log.Printf("warning: gagal mengambil default role 'buyer': %v", err)
-		// kalau belum ada, sementara pakai uuid.Nil (nanti bisa kamu ganti)
-		defaultRoleID = uuid.Nil
 	}
 
 	// --- 2. Init repository, service, handler ---
