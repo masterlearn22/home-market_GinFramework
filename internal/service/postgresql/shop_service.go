@@ -3,7 +3,6 @@ package service
 import (
 	"errors"
 	"time"
-
 	entity "home-market/internal/domain"
 	repo "home-market/internal/repository/postgresql"
 
@@ -13,6 +12,7 @@ import (
 var (
 	ErrNotSeller      = errors.New("only seller role can create a shop")
 	ErrShopExists     = errors.New("user already has a shop")
+	ErrNoShopOwned   = errors.New("seller does not own a shop")
 )
 
 type ShopService struct {

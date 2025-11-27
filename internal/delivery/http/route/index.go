@@ -26,6 +26,9 @@ func SetupRoute(app *gin.Engine, db *sql.DB) {
 	shopRepo := repo.NewShopRepository(db)
 	shopService := service.NewShopService(shopRepo)
 	shopHandler := httpHandler.NewShopHandler(shopService)
+	categoryRepo := repo.NewCategoryRepository(db)
+	categoryService := service.NewCategoryService(categoryRepo)
+	categoryHandler := httpHandler.NewCategoryHandler(categoryService)
 
 	// --- 3. Definisikan group route ---
 	api := app.Group("/api")
@@ -39,5 +42,7 @@ func SetupRoute(app *gin.Engine, db *sql.DB) {
 	
 	shop := api.Group("/shops")
 	shop.POST("/", middleware.AuthRequired(), shopHandler.CreateShop)
+	cat := api.Group("/categories")
+	cat.POST("/", middleware.AuthRequired(), categoryHandler.CreateCategory)
 	
 }
