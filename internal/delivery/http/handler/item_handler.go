@@ -156,3 +156,97 @@ func (h *ItemHandler) DeleteItem(c *gin.Context) {
 
     c.JSON(200, gin.H{"message": "item archived/deleted successfully"})
 }
+
+// FR-GIVER-01 & FR-GIVER-02: Membuat Penawaran
+func (h *ItemHandler) CreateOffer(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+    role := c.MustGet("role_name").(string)
+
+    // Cek Role sebelum Parsing (efisiensi)
+    if role != "giver" {
+        c.JSON(403, gin.H{"error": "Forbidden: only Giver can create offers"})
+        return
+    }
+
+    // Menggunakan c.MultipartForm() untuk handle form-data + file
+    form, err := c.MultipartForm()
+    if err != nil {
+        c.JSON(400, gin.H{"error": "invalid form-data", "detail": err.Error()})
+        return
+    }
+
+    // Helper untuk mengambil nilai form
+    get := func(key string) string {
+        if v, ok := form.Value[key]; ok && len(v) > 0 {
+            return v[0]
+        }
+        return ""
+    }
+
+    // Mapping input manual dari form
+    input := entity.CreateOfferInput{
+        SellerIDStr:   get("seller_id"),
+        ItemName:      get("item_name"),
+        Description:   get("description"),
+        Condition:     get("condition"),
+        Location:      get("location"),
+    }
+    
+    // Parse Expected Price
+    priceStr := get("expected_price")
+    input.ExpectedPrice, err = strconv.ParseFloat(priceStr, 64)
+    if err != nil {
+        c.JSON(400, gin.H{"error": "invalid expected_price"})
+        return
+    }
+
+    // --- Images Upload (FR-GIVER-02) ---
+    files := form.File["images"]
+    if len(files) == 0 {
+        c.JSON(400, gin.H{"error": "image file is required"})
+        return
+    }
+    
+    // Ambil hanya 1 file (asumsi SRS hanya butuh 1 image_url)
+    file := files[0]
+    filename := uuid.New().String() + filepath.Ext(file.Filename)
+    savePath := "uploads/offers/" + filename // Simpan di folder berbeda
+    
+    if err := c.SaveUploadedFile(file, savePath); err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+    imageURL := "/uploads/offers/" + filename
+    
+    // --- Service Call ---
+    offer, err := h.itemService.CreateOffer(userID, role, input, imageURL)
+    if err != nil {
+        c.JSON(400, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(201, gin.H{
+        "message": "Offer created successfully. Waiting for seller response.",
+        "offer": offer,
+    })
+}
+
+// FR-GIVER-03: Melihat Status Penawaran
+func (h *ItemHandler) GetMyOffers(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+    role := c.MustGet("role_name").(string)
+
+    // Cek Role
+    if role != "giver" {
+        c.JSON(403, gin.H{"error": "Forbidden: only Giver can view offers"})
+        return
+    }
+
+    offers, err := h.itemService.GetMyOffers(userID, role)
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"offers": offers})
+}

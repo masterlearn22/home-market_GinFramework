@@ -14,6 +14,7 @@ var (
 	ErrInvalidStock      = errors.New("stock must be >= 0")
 	ErrInvalidPrice      = errors.New("price must be >= 0")
 	ErrCategoryNotOwned  = errors.New("category does not belong to seller's shop")
+	ErrNotGiver = errors.New("access denied: only giver role is allowed")
 )
 
 type ItemService struct {
@@ -163,4 +164,58 @@ func (s *ItemService) DeleteItem(userID uuid.UUID, itemID uuid.UUID) error {
 
     // 3. Simpan perubahan
     return s.itemRepo.UpdateItem(item)
+}
+
+// FR-GIVER-01 & FR-GIVER-02: Membuat Penawaran Barang
+func (s *ItemService) CreateOffer(userID uuid.UUID, role string, input entity.CreateOfferInput, imageURL string) (*entity.Offer, error) {
+    if role != "giver" {
+        return nil, ErrNotGiver // Validasi FR-GIVER-01
+    }
+
+    var sellerID uuid.UUID
+    if input.SellerIDStr != "" {
+        id, err := uuid.Parse(input.SellerIDStr)
+        if err != nil {
+            return nil, errors.New("invalid seller_id format")
+        }
+        // Opsional: Cek apakah SellerID valid dan memiliki toko aktif (tambahan validasi)
+        sellerID = id
+    }
+    
+    // Validasi dasar
+    if input.ExpectedPrice < 0 {
+        return nil, errors.New("expected price cannot be negative")
+    }
+
+    offer := &entity.Offer{
+        ID:             uuid.New(),
+        GiverID:        userID,
+        SellerID:       sellerID,
+        ItemName:       input.ItemName,
+        Description:    input.Description,
+        ImageURL:       imageURL, // URL dari file yang di-upload (FR-GIVER-02)
+        ExpectedPrice:  input.ExpectedPrice,
+        Condition:      input.Condition,
+        Location:       input.Location,
+        Status:         "pending", // Status awal selalu pending (FR-GIVER-01)
+        CreatedAt:      time.Now(),
+        UpdatedAt:      time.Now(),
+    }
+
+    if err := s.itemRepo.CreateOffer(offer); err != nil {
+        return nil, err
+    }
+    
+    // Opsional: Trigger notifikasi ke Seller jika SellerID ada (FR-NOTIF-01)
+    
+    return offer, nil
+}
+
+// FR-GIVER-03: Melihat Status Penawaran
+func (s *ItemService) GetMyOffers(userID uuid.UUID, role string) ([]entity.Offer, error) {
+    if role != "giver" {
+        return nil, ErrNotGiver
+    }
+    
+    return s.itemRepo.GetOffersByGiverID(userID)
 }

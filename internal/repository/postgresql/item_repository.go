@@ -14,6 +14,8 @@ type ItemRepository interface {
 	IsCategoryOwnedByShop(categoryID, shopID uuid.UUID) (bool, error)
 	GetItemByID(id uuid.UUID) (*entity.Item, error)
     UpdateItem(item *entity.Item) error
+	CreateOffer(offer *entity.Offer) error
+    GetOffersByGiverID(giverID uuid.UUID) ([]entity.Offer, error)
 }
 
 type itemRepository struct {
@@ -111,4 +113,45 @@ func (r *itemRepository) UpdateItem(item *entity.Item) error {
         item.Name, item.Description, item.Price, item.Stock, item.Condition, item.Status, item.ID,
     )
     return err
+}
+
+func (r *itemRepository) CreateOffer(offer *entity.Offer) error {
+    query := `
+        INSERT INTO offers (id, giver_id, seller_id, item_name, description, image_url, expected_price, condition, location, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW(), NOW())
+    `
+    // seller_id harus diubah ke interface{} atau sql.NullUUID jika boleh NULL
+    _, err := r.db.Exec(query,
+        offer.ID, offer.GiverID, offer.SellerID, offer.ItemName, offer.Description,
+        offer.ImageURL, offer.ExpectedPrice, offer.Condition, offer.Location, offer.Status,
+    )
+    return err
+}
+
+// FR-GIVER-03: Melihat Status Penawaran
+func (r *itemRepository) GetOffersByGiverID(giverID uuid.UUID) ([]entity.Offer, error) {
+    var offers []entity.Offer
+    query := `
+        SELECT id, giver_id, seller_id, item_name, description, image_url, expected_price, agreed_price, condition, location, status, created_at, updated_at
+        FROM offers
+        WHERE giver_id = $1
+    `
+    rows, err := r.db.Query(query, giverID)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var offer entity.Offer
+        err := rows.Scan(
+            &offer.ID, &offer.GiverID, &offer.SellerID, &offer.ItemName, &offer.Description,
+            &offer.ImageURL, &offer.ExpectedPrice, &offer.AgreedPrice, &offer.Condition, &offer.Location, &offer.Status, &offer.CreatedAt, &offer.UpdatedAt,
+        )
+        if err != nil {
+            return nil, err
+        }
+        offers = append(offers, offer)
+    }
+    return offers, nil
 }

@@ -47,9 +47,13 @@ func SetupRoute(app *gin.Engine, db *sql.DB) {
 	shop.POST("/", middleware.AuthRequired(), shopHandler.CreateShop)
 	cat := api.Group("/categories")
 	cat.POST("/", middleware.AuthRequired(), categoryHandler.CreateCategory)
-	items := api.Group("/items")
-	items.POST("/", middleware.AuthRequired(), itemHandler.CreateItem)
-	items.PUT("/:id", itemHandler.UpdateItem)    // FR-SELLER-04 & FR-SELLER-06
-    items.DELETE("/:id", itemHandler.DeleteItem) // FR-SELLER-05
-	
+
+	items := api.Group("/items", middleware.AuthRequired())
+	items.POST("/", itemHandler.CreateItem)
+	items.PUT("/:id", itemHandler.UpdateItem)    
+    items.DELETE("/:id", itemHandler.DeleteItem) 
+
+	offers := api.Group("/offers", middleware.AuthRequired())
+    offers.POST("", itemHandler.CreateOffer)
+    offers.GET("/my", itemHandler.GetMyOffers)	
 }
