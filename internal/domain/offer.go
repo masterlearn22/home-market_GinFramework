@@ -32,3 +32,7 @@ type CreateOfferInput struct {
     Location        string  `form:"location"`
 	ImageFileHeader string  // Placeholder untuk nama file yang di-upload
 }
+
+type AcceptOfferInput struct {
+	AgreedPrice float64 `json:"agreed_price" binding:"required,min=0"`
+}

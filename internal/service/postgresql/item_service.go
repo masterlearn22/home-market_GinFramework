@@ -3,7 +3,8 @@ package service
 import (
 	"errors"
 	"time"
-
+    "fmt"
+    "database/sql"
 	entity "home-market/internal/domain"
 	repo "home-market/internal/repository/postgresql"
 
@@ -15,6 +16,9 @@ var (
 	ErrInvalidPrice      = errors.New("price must be >= 0")
 	ErrCategoryNotOwned  = errors.New("category does not belong to seller's shop")
 	ErrNotGiver = errors.New("access denied: only giver role is allowed")
+    ErrOfferNotFound    = errors.New("offer not found")
+    ErrOfferStatus      = errors.New("offer is not in pending status")
+    ErrNotSellerOrOwner = errors.New("unauthorized: access denied or you are not the owner")
 )
 
 type ItemService struct {
@@ -218,4 +222,134 @@ func (s *ItemService) GetMyOffers(userID uuid.UUID, role string) ([]entity.Offer
     }
     
     return s.itemRepo.GetOffersByGiverID(userID)
+}
+
+// FR-OFFER-01: Seller Melihat Penawaran
+func (s *ItemService) GetOffersToSeller(userID uuid.UUID, role string) ([]entity.Offer, error) {
+    if role != "seller" {
+        return nil, errors.New("access denied: only seller can view offers")
+    }
+
+    // Pastikan user memiliki shop untuk menerima penawaran
+    shop, err := s.itemRepo.GetShopByUserID(userID)
+    if err != nil {
+        return nil, err
+    }
+    if shop == nil {
+        return nil, ErrNoShopOwned
+    }
+
+    // Mengambil offer berdasarkan UserID (SellerID)
+    return s.itemRepo.GetOffersBySellerID(userID)
+}
+
+// FR-OFFER-02: Seller Menerima Penawaran
+func (s *ItemService) AcceptOffer(userID uuid.UUID, offerID uuid.UUID, input entity.AcceptOfferInput) (*entity.Offer, *entity.Item, error) {
+    var shop *entity.Shop // FIX 2: Deklarasikan 'shop' di luar if block
+
+    // 1. Validasi Role dan Ownership: Cek User punya Shop
+    shop, err := s.checkSellerOwnership(userID) // Panggil helper
+    if err != nil {
+        return nil, nil, err
+    }
+    if shop == nil {
+        return nil, nil, ErrNoShopOwned 
+    }
+
+    offer, err := s.itemRepo.GetOfferByID(offerID)
+    if err != nil {
+        return nil, nil, err
+    }
+    if offer == nil {
+        return nil, nil, ErrOfferNotFound
+    }
+    
+    // 2. Ownership check pada Offer
+    // FIX 1: Ganti IsZero() dengan uuid.Nil
+    if offer.SellerID != uuid.Nil && offer.SellerID != userID { 
+        return nil, nil, ErrNotSellerOrOwner
+    }
+
+    // 3. Cek Status Offer
+    if offer.Status != "pending" {
+        return nil, nil, ErrOfferStatus
+    }
+
+    // 4. Update Status dan Harga
+    offer.Status = "accepted"
+    offer.AgreedPrice = sql.NullFloat64{Float64: input.AgreedPrice, Valid: true}
+    
+    if err := s.itemRepo.UpdateOffer(offer); err != nil {
+        return nil, nil, err
+    }
+
+    // 5. Buat Draft Item (shop sekarang bisa diakses)
+    draftItem := s.createDraftItemFromOffer(offer, shop.ID) 
+    if err := s.itemRepo.CreateItem(draftItem); err != nil {
+        return offer, nil, errors.New("offer accepted, but failed to create draft item")
+    }
+
+    return offer, draftItem, nil
+}
+
+// FR-OFFER-03: Seller Menolak Penawaran
+func (s *ItemService) RejectOffer(userID uuid.UUID, offerID uuid.UUID) (*entity.Offer, error) {
+    // 1. Validasi Role dan Ownership
+    if shop, err := s.checkSellerOwnership(userID); err != nil {
+        return nil, err
+    } else if shop == nil {
+        return nil, ErrNoShopOwned
+    }
+
+    offer, err := s.itemRepo.GetOfferByID(offerID)
+    if err != nil {
+        return nil, err
+    }
+    if offer == nil {
+        return nil, ErrOfferNotFound
+    }
+    if offer.Status != "pending" {
+        return nil, ErrOfferStatus
+    }
+
+    // 2. Update Status (FR-OFFER-03)
+    offer.Status = "rejected"
+    // AgreedPrice tidak perlu diubah/di-set
+
+    if err := s.itemRepo.UpdateOffer(offer); err != nil {
+        return nil, err
+    }
+
+    // Opsional: Simpan ke history_status (Mongo)
+
+    return offer, nil
+}
+
+// --- Helper Functions ---
+
+// Helper untuk validasi kepemilikan
+func (s *ItemService) checkSellerOwnership(userID uuid.UUID) (*entity.Shop, error) {
+    shop, err := s.itemRepo.GetShopByUserID(userID)
+    if err != nil {
+        return nil, err
+    }
+    // Jika shop == nil, akan dikembalikan sebagai (nil, nil)
+    return shop, nil
+}
+
+// FR-OFFER-04: Helper untuk membuat Item Draft
+func (s *ItemService) createDraftItemFromOffer(offer *entity.Offer, shopID uuid.UUID) *entity.Item {
+    return &entity.Item{
+        ID:          uuid.New(),
+        ShopID:      shopID,
+        CategoryID:  uuid.Nil, // Default: Item draft tidak punya kategori sebelum diedit Seller
+        Name:        offer.ItemName,
+        Description: fmt.Sprintf("Draft dari Penawaran: %s. Kondisi: %s. Lokasi Awal: %s.", offer.Description, offer.Condition, offer.Location),
+        Price:       offer.AgreedPrice.Float64, // Menggunakan harga kesepakatan
+        Stock:       1,                         // Stok awal 1 unit
+        Condition:   offer.Condition,
+        Status:      "draft",                   // FR-OFFER-04: Status draft/inactive
+        CreatedAt:   time.Now(),
+        UpdatedAt:   time.Now(),
+    }
 }

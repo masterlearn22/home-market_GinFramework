@@ -55,5 +55,8 @@ func SetupRoute(app *gin.Engine, db *sql.DB) {
 
 	offers := api.Group("/offers", middleware.AuthRequired())
     offers.POST("", itemHandler.CreateOffer)
-    offers.GET("/my", itemHandler.GetMyOffers)	
+    offers.GET("/my", itemHandler.GetMyOffers)
+    offers.GET("/inbox", middleware.AuthRequired(), itemHandler.GetOffersToSeller)
+    offers.POST("/:id/accept", middleware.AuthRequired(), itemHandler.AcceptOffer)
+    offers.POST("/:id/reject", middleware.AuthRequired(), itemHandler.RejectOffer)	
 }

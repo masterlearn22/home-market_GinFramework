@@ -250,3 +250,72 @@ func (h *ItemHandler) GetMyOffers(c *gin.Context) {
 
     c.JSON(200, gin.H{"offers": offers})
 }
+
+// [internal/delivery/http/handler/item_handler.go]
+
+// FR-OFFER-01: Seller Melihat Penawaran
+func (h *ItemHandler) GetOffersToSeller(c *gin.Context) {
+    userID := c.MustGet("user_id").(uuid.UUID)
+    role := c.MustGet("role_name").(string)
+
+    offers, err := h.itemService.GetOffersToSeller(userID, role)
+    if err != nil {
+        c.JSON(500, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{"offers": offers})
+}
+
+// FR-OFFER-02: Seller Menerima Penawaran
+func (h *ItemHandler) AcceptOffer(c *gin.Context) {
+    offerIDStr := c.Param("id")
+    offerID, err := uuid.Parse(offerIDStr)
+    if err != nil {
+        c.JSON(400, gin.H{"error": "invalid offer id"})
+        return
+    }
+
+    var input entity.AcceptOfferInput
+    if err := c.ShouldBindJSON(&input); err != nil {
+        c.JSON(400, gin.H{"error": "invalid input for agreed price", "detail": err.Error()})
+        return
+    }
+
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    offer, draftItem, err := h.itemService.AcceptOffer(userID, offerID, input)
+    if err != nil {
+        c.JSON(400, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{
+        "message": "Offer accepted successfully. Draft item created.",
+        "offer": offer,
+        "draft_item": draftItem, // FR-OFFER-04
+    })
+}
+
+// FR-OFFER-03: Seller Menolak Penawaran
+func (h *ItemHandler) RejectOffer(c *gin.Context) {
+    offerIDStr := c.Param("id")
+    offerID, err := uuid.Parse(offerIDStr)
+    if err != nil {
+        c.JSON(400, gin.H{"error": "invalid offer id"})
+        return
+    }
+
+    userID := c.MustGet("user_id").(uuid.UUID)
+
+    offer, err := h.itemService.RejectOffer(userID, offerID)
+    if err != nil {
+        c.JSON(400, gin.H{"error": err.Error()})
+        return
+    }
+
+    c.JSON(200, gin.H{
+        "message": "Offer rejected successfully.",
+        "offer": offer,
+    })
+}
