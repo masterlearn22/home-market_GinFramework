@@ -1,5 +1,25 @@
 basePath: /api
 definitions:
+  entity.Category:
+    properties:
+      createdAt:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      shopId:
+        type: string
+      updatedAt:
+        type: string
+    type: object
+  entity.CreateCategoryInput:
+    properties:
+      name:
+        type: string
+    required:
+    - name
+    type: object
   entity.LoginResponse:
     properties:
       refresh_token:
@@ -279,6 +299,51 @@ paths:
       summary: Register New User
       tags:
       - Auth
+  /categories:
+    post:
+      consumes:
+      - application/json
+      description: Allows a logged-in seller to create a new category unique to their
+        shop.
+      parameters:
+      - description: Category details (Name)
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/entity.CreateCategoryInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.Category'
+        "400":
+          description: Invalid input or missing shop
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden (not seller)
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict (category name already exists)
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal server error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create New Shop Category
+      tags:
+      - Category
 securityDefinitions:
   ApiKeyAuth:
     in: header
