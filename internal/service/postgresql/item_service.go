@@ -12,6 +12,10 @@ var (
 	ErrInvalidStock     = errors.New("stock must be >= 0")
 	ErrInvalidPrice     = errors.New("price must be >= 0")
 	ErrCategoryNotOwned = errors.New("category does not belong to seller's shop")
+	ValidOrderStatuses = map[string]bool{
+	"pending": true, "paid": true, "processing": true,
+	"shipped": true, "completed": true, "cancelled": true,
+	}
 )
 
 type ItemService struct {
@@ -28,6 +32,24 @@ func NewItemService(itemRepo repo.ItemRepository, shopRepo repo.ShopRepository, 
 	}
 }
 
+// @Summary      Create New Item
+// @Description  Allows a Seller to create a new item within their shop. Requires multipart/form-data for input and image upload.
+// @Tags         Seller/Items
+// @Accept       mpfd
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        name formData string true "Item Name"
+// @Param        description formData string false "Item Description"
+// @Param        price formData number true "Item Price"
+// @Param        stock formData integer true "Initial Stock"
+// @Param        condition formData string false "Item Condition"
+// @Param        category_id formData string true "Category ID (UUID) owned by the shop"
+// @Param        images formData file true "Item Images"
+// @Success      201  {object}  map[string]interface{} "Returns created item and image URLs"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]interface{} "Forbidden (not seller)"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /items [post]
 func (s *ItemService) CreateItem(userID uuid.UUID, role string, input entity.CreateItemInput, imageURLs []string) (*entity.Item, []entity.ItemImage, error) {
 
 	if role != "seller" {
@@ -42,7 +64,7 @@ func (s *ItemService) CreateItem(userID uuid.UUID, role string, input entity.Cre
 		return nil, nil, ErrNoShopOwned
 	}
 
-	// Validasi kategori milik shop
+	
 	owned, err := s.shopRepo.IsCategoryOwnedByShop(input.CategoryID, shop.ID)
 	if err != nil {
 		return nil, nil, err
@@ -72,12 +94,12 @@ func (s *ItemService) CreateItem(userID uuid.UUID, role string, input entity.Cre
 		UpdatedAt:   time.Now(),
 	}
 
-	// Simpan item
+
 	if err := s.itemRepo.CreateItem(item); err != nil {
 		return nil, nil, err
 	}
 
-	// Simpan gambar
+
 	var images []entity.ItemImage
 	for _, url := range imageURLs {
 		img := entity.ItemImage{
@@ -97,8 +119,22 @@ func (s *ItemService) CreateItem(userID uuid.UUID, role string, input entity.Cre
 	return item, images, nil
 }
 
+// @Summary      Update Item Details
+// @Description  Allows a Seller to update item fields (name, price, stock, status, etc.) for an item they own.
+// @Tags         Seller/Items
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Item ID to update"
+// @Param        input body entity.UpdateItemInput true "Updated item details"
+// @Success      200  {object}  entity.Item "Returns the updated item"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]interface{} "Unauthorized (not owner)"
+// @Failure      404  {object}  map[string]interface{} "Item not found"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /items/{id} [put]
 func (s *ItemService) UpdateItem(userID uuid.UUID, itemID uuid.UUID, input entity.UpdateItemInput) (*entity.Item, error) {
-	// 1. Cek apakah Item ada
+	
 	item, err := s.itemRepo.GetItemByID(itemID)
 	if err != nil {
 		return nil, err
@@ -107,7 +143,6 @@ func (s *ItemService) UpdateItem(userID uuid.UUID, itemID uuid.UUID, input entit
 		return nil, errors.New("item not found")
 	}
 
-	// 2. Cek Shop milik User
 	shop, err := s.shopRepo.GetByUserID(userID)
 	if err != nil {
 		return nil, err
@@ -116,24 +151,22 @@ func (s *ItemService) UpdateItem(userID uuid.UUID, itemID uuid.UUID, input entit
 		return nil, errors.New("you do not have a shop")
 	}
 
-	// 3. Validasi Kepemilikan: Item.ShopID harus sama dengan Shop.ID milik user
 	if item.ShopID != shop.ID {
 		return nil, errors.New("unauthorized: this item does not belong to your shop")
 	}
 
-	// 4. Update Field (FR-SELLER-04 & FR-SELLER-06)
+
 	item.Name = input.Name
 	item.Description = input.Description
 	item.Price = input.Price
 	item.Stock = input.Stock
 	item.Condition = input.Condition
 
-	// Jika user mengirim status (misal mau re-activate), pakai itu. Jika kosong, biarkan yang lama.
+	
 	if input.Status != "" {
 		item.Status = input.Status
 	}
 
-	// 5. Simpan ke DB
 	if err := s.itemRepo.UpdateItem(item); err != nil {
 		return nil, err
 	}
@@ -141,8 +174,19 @@ func (s *ItemService) UpdateItem(userID uuid.UUID, itemID uuid.UUID, input entit
 	return item, nil
 }
 
+// @Summary      Archive/Delete Item (Soft Delete)
+// @Description  Sets the status of an item to 'inactive'. Only the item owner can perform this action.
+// @Tags         Seller/Items
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Item ID to delete"
+// @Success      200  {object}  map[string]interface{} "Item archived/deleted successfully"
+// @Failure      403  {object}  map[string]interface{} "Unauthorized"
+// @Failure      404  {object}  map[string]interface{} "Item not found"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /items/{id} [delete]
 func (s *ItemService) DeleteItem(userID uuid.UUID, itemID uuid.UUID) error {
-	// 1. Cek Item & Shop (Logic sama seperti update)
 	item, err := s.itemRepo.GetItemByID(itemID)
 	if err != nil {
 		return err
@@ -160,15 +204,19 @@ func (s *ItemService) DeleteItem(userID uuid.UUID, itemID uuid.UUID) error {
 	}
 
 	item.Status = "inactive"
-
-	// 3. Simpan perubahan
 	return s.itemRepo.UpdateItem(item)
 }
 
-
-// [internal/service/item_service.go]
-
-// FR-BUYER-03: Melihat Detail Barang
+// @Summary      Get Item Detail (Marketplace View)
+// @Description  Retrieves detailed information for a single item, ensuring it is active and available.
+// @Tags         Marketplace
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string  true  "Item ID to retrieve"
+// @Success      200  {object}  entity.Item
+// @Failure      404  {object}  map[string]interface{} "Item not found or inactive"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /market/items/{id} [get]
 func (s *ItemService) GetItemDetail(itemID uuid.UUID) (*entity.Item, error) {
 	item, err := s.orderRepo.GetItemForOrder(itemID)
 	if err != nil {
@@ -177,14 +225,8 @@ func (s *ItemService) GetItemDetail(itemID uuid.UUID) (*entity.Item, error) {
 	if item == nil || item.Status != "active" {
 		return nil, errors.New("item not found or inactive")
 	}
-	// Asumsi JOIN dengan data Shop/Images dilakukan di layer ini atau di handler
 	return item, nil
 }
 
-// [internal/service/item_service.go]
 
-var ValidOrderStatuses = map[string]bool{
-	"pending": true, "paid": true, "processing": true,
-	"shipped": true, "completed": true, "cancelled": true,
-}
 

@@ -20,6 +20,32 @@ definitions:
     required:
     - name
     type: object
+  entity.Item:
+    properties:
+      categoryID:
+        type: string
+      condition:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      shopID:
+        type: string
+      status:
+        description: active, inactive, deleted
+        type: string
+      stock:
+        type: integer
+      updatedAt:
+        type: string
+    type: object
   entity.LoginResponse:
     properties:
       refresh_token:
@@ -33,6 +59,26 @@ definitions:
     properties:
       token:
         type: string
+    type: object
+  entity.UpdateItemInput:
+    properties:
+      condition:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+      price:
+        minimum: 0
+        type: number
+      status:
+        type: string
+      stock:
+        minimum: 0
+        type: integer
+    required:
+    - condition
+    - name
     type: object
   entity.UpdateUserStatusInput:
     properties:
@@ -344,6 +390,195 @@ paths:
       summary: Create New Shop Category
       tags:
       - Category
+  /items:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Allows a Seller to create a new item within their shop. Requires
+        multipart/form-data for input and image upload.
+      parameters:
+      - description: Item Name
+        in: formData
+        name: name
+        required: true
+        type: string
+      - description: Item Description
+        in: formData
+        name: description
+        type: string
+      - description: Item Price
+        in: formData
+        name: price
+        required: true
+        type: number
+      - description: Initial Stock
+        in: formData
+        name: stock
+        required: true
+        type: integer
+      - description: Item Condition
+        in: formData
+        name: condition
+        type: string
+      - description: Category ID (UUID) owned by the shop
+        in: formData
+        name: category_id
+        required: true
+        type: string
+      - description: Item Images
+        in: formData
+        name: images
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Returns created item and image URLs
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden (not seller)
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create New Item
+      tags:
+      - Seller/Items
+  /items/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Sets the status of an item to 'inactive'. Only the item owner can
+        perform this action.
+      parameters:
+      - description: Item ID to delete
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Item archived/deleted successfully
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Item not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Archive/Delete Item (Soft Delete)
+      tags:
+      - Seller/Items
+    put:
+      consumes:
+      - application/json
+      description: Allows a Seller to update item fields (name, price, stock, status,
+        etc.) for an item they own.
+      parameters:
+      - description: Item ID to update
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated item details
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/entity.UpdateItemInput'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns the updated item
+          schema:
+            $ref: '#/definitions/entity.Item'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Unauthorized (not owner)
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Item not found
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update Item Details
+      tags:
+      - Seller/Items
+  /market/items/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieves detailed information for a single item, ensuring it is
+        active and available.
+      parameters:
+      - description: Item ID to retrieve
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Item'
+        "404":
+          description: Item not found or inactive
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get Item Detail (Marketplace View)
+      tags:
+      - Marketplace
 securityDefinitions:
   ApiKeyAuth:
     in: header
