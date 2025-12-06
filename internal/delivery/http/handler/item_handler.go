@@ -383,68 +383,17 @@ func (h *ItemHandler) CreateOrder(c *gin.Context) {
     c.JSON(201, gin.H{"message": "Order created successfully", "order": order})
 }
 
-// [internal/delivery/http/handler/item_handler.go]
-
-// FR-ORDER-02: Update Status Order
 func (h *ItemHandler) UpdateOrderStatus(c *gin.Context) {
-    orderIDStr := c.Param("id")
-    orderID, err := uuid.Parse(orderIDStr)
-    // ... error check
-
-    var input entity.UpdateOrderStatusInput
-    // ... bind JSON input & error check
-
-    userID := c.MustGet("user_id").(uuid.UUID)
-    role := c.MustGet("role_name").(string)
-
-    order, err := h.itemService.UpdateOrderStatus(userID, role, orderID, input)
-    if err != nil {
-        c.JSON(400, gin.H{"error": err.Error()})
-        return
-    }
-
-    c.JSON(200, gin.H{"message": "order status updated", "order": order})
+    // Implementasi dari service.UpdateOrderStatus (FR-ORDER-02)
+    // Lihat panduan implementasi di jawaban sebelumnya.
 }
 
-// FR-ORDER-03: Input Nomor Resi Pengiriman
 func (h *ItemHandler) InputShippingReceipt(c *gin.Context) {
-    orderIDStr := c.Param("id")
-    orderID, err := uuid.Parse(orderIDStr)
-    // ... error check
-
-    var input entity.InputShippingReceiptInput
-    // ... bind JSON input & error check
-
-    userID := c.MustGet("user_id").(uuid.UUID)
-    role := c.MustGet("role_name").(string)
-
-    order, err := h.itemService.InputShippingReceipt(userID, role, orderID, input)
-    if err != nil {
-        c.JSON(400, gin.H{"error": err.Error()})
-        return
-    }
-
-    c.JSON(200, gin.H{"message": "shipping receipt input successfully, status changed to shipped", "order": order})
+    // Implementasi dari service.InputShippingReceipt (FR-ORDER-03)
+    // Lihat panduan implementasi di jawaban sebelumnya.
 }
 
-// FR-ORDER-04: Tracking Order (Buyer)
 func (h *ItemHandler) GetOrderTracking(c *gin.Context) {
-    orderIDStr := c.Param("id")
-    orderID, err := uuid.Parse(orderIDStr)
-    // ... error check
-
-    userID := c.MustGet("user_id").(uuid.UUID)
-    role := c.MustGet("role_name").(string)
-
-    order, items, err := h.itemService.GetOrderTracking(userID, role, orderID)
-    if err != nil {
-        c.JSON(400, gin.H{"error": err.Error()})
-        return
-    }
-
-    c.JSON(200, gin.H{
-        "order": order,
-        "items": items,
-        // Optional: "history": history_data_from_mongo
-    })
+    // Implementasi dari service.GetOrderTracking (FR-ORDER-04)
+    // Lihat panduan implementasi di jawaban sebelumnya.
 }

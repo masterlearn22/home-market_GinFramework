@@ -3,7 +3,7 @@ package repository
 import (
 	"database/sql"
 	entity "home-market/internal/domain"
-
+    "errors"
 	"github.com/google/uuid"
 )
 
@@ -11,6 +11,7 @@ type ItemRepository interface {
 	CreateItem(item *entity.Item) error
 	CreateItemImage(img *entity.ItemImage) error
 	GetShopByUserID(userID uuid.UUID) (*entity.Shop, error)
+    GetShopOwnerID(shopID uuid.UUID) (uuid.UUID, error)
 	IsCategoryOwnedByShop(categoryID, shopID uuid.UUID) (bool, error)
 	GetItemByID(id uuid.UUID) (*entity.Item, error)
     UpdateItem(item *entity.Item) error
@@ -58,6 +59,24 @@ func (r *itemRepository) GetShopByUserID(userID uuid.UUID) (*entity.Shop, error)
 	}
 
 	return &shop, nil
+}
+
+// [internal/repository/postgresql/item_repository.go]
+
+func (r *itemRepository) GetShopOwnerID(shopID uuid.UUID) (uuid.UUID, error) {
+    var ownerID uuid.UUID
+    query := `SELECT user_id FROM shops WHERE id = $1`
+    
+    err := r.db.QueryRow(query, shopID).Scan(&ownerID)
+
+    if err == sql.ErrNoRows {
+        // Kembalikan uuid.Nil jika toko tidak ditemukan
+        return uuid.Nil, errors.New("shop not found")
+    }
+    if err != nil {
+        return uuid.Nil, err
+    }
+    return ownerID, nil
 }
 
 func (r *itemRepository) IsCategoryOwnedByShop(categoryID, shopID uuid.UUID) (bool, error) {

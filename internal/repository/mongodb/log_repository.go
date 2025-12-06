@@ -4,52 +4,64 @@ import (
 	"context"
 	"fmt"
 	"time"
-	// Asumsi Anda mengimpor entity dari domain
-	entity "home-market/internal/domain"
+	entity "home-market/internal/domain" // Asumsi entity diimpor
 
 	"go.mongodb.org/mongo-driver/mongo"
 )
 
-// PLACEHOLDERS (Anda perlu menentukan nama Database dan Collection di sini)
+// PLACEHOLDERS
 const (
-	// Ganti dengan nama database MongoDB Anda
-	DatabaseName = "random_home_market" 
-	
-	// Collection untuk menyimpan riwayat status (FR-ORDER-02/03)
+	DatabaseName     = "random_home_market"
 	CollectionStatus = "history_status"
+	CollectionNotifs = "notifications" // <--- TAMBAHKAN DEFINISI COLLECTION BARU
 )
 
-// LogRepository Interface (sudah ada)
 type LogRepository interface {
 	SaveHistoryStatus(doc *entity.HistoryStatus) error
+	SaveNotification(doc *entity.Notification) error
 }
 
 type logRepository struct {
-	collection *mongo.Collection
+    // FIX 1: Ubah field dari collection ke client
+	client *mongo.Client 
 }
 
 // NewLogRepository: Constructor untuk inisialisasi LogRepository
 func NewLogRepository(client *mongo.Client) LogRepository {
-	db := client.Database(DatabaseName)
+	// FIX 2: Simpan objek Client
 	return &logRepository{
-		collection: db.Collection(CollectionStatus),
+		client: client,
 	}
 }
 
-// FR-ORDER-02/03: Simpan Riwayat Status
+// FR-ORDER-02/03: Simpan Riwayat Status (Disesuaikan)
 func (r *logRepository) SaveHistoryStatus(doc *entity.HistoryStatus) error {
-	// Set timeout context
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// Implementasi Insert ke MongoDB Collection 'history_status'
-	// Driver Mongo akan secara otomatis mengisi _id (ObjectId) jika belum diset.
-	
-	_, err := r.collection.InsertOne(ctx, doc)
-	
+	// FIX 3: Akses collection secara dinamis dari r.client
+	collection := r.client.Database(DatabaseName).Collection(CollectionStatus)
+
+	_, err := collection.InsertOne(ctx, doc)
+
 	if err != nil {
-		// Gunakan fmt.Errorf untuk membungkus error agar mudah di-debug
 		return fmt.Errorf("failed to insert history status to Mongo: %w", err)
+	}
+	return nil
+}
+
+// Implementasi method baru
+func (r *logRepository) SaveNotification(doc *entity.Notification) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// FIX 4: Akses collection 'notifications' secara dinamis dari r.client
+	collection := r.client.Database(DatabaseName).Collection(CollectionNotifs)
+
+	_, err := collection.InsertOne(ctx, doc)
+
+	if err != nil {
+		return fmt.Errorf("failed to insert notification to Mongo: %w", err)
 	}
 
 	return nil
