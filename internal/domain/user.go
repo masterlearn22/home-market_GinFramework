@@ -16,3 +16,8 @@ type User struct {
 	CreatedAt    time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at" db:"updated_at"`
 }
+
+// Struct untuk FR-ADMIN-03
+type UpdateUserStatusInput struct {
+    IsActive bool `json:"is_active" binding:"required"`
+}

@@ -14,6 +14,8 @@ type UserRepository interface {
 	GetByID(id uuid.UUID) (*entity.User, error)
 	GetByEmail(email string) (*entity.User, error)
 	CreateUser(user *entity.User) error
+	ListAllUsers() ([]entity.User, error) // FR-ADMIN-01
+    UpdateUserStatus(userID uuid.UUID, isActive bool) error // FR-ADMIN-03
 }
 
 type userRepository struct {
@@ -157,4 +159,50 @@ func (r *userRepository) CreateUser(user *entity.User) error {
 	)
 
 	return err
+}
+
+func (r *userRepository) ListAllUsers() ([]entity.User, error) {
+    // 1. Deklarasikan slice untuk menampung hasil (FIX: undefined users)
+    var users []entity.User 
+
+    query := `
+        SELECT id, name, email is_active, created_at, updated_at
+        FROM users
+    `
+    // Eksekusi query
+    rows, err := r.db.Query(query)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    // 2. Loop melalui hasil query
+    for rows.Next() {
+        var user entity.User // Asumsi entity.User memiliki semua field di atas
+        
+        // Asumsi struct entity.User mencakup field is_active dll.
+        // Anda perlu menyesuaikan Scan() ini agar sesuai dengan struct entity.User Anda.
+        err := rows.Scan(
+            &user.ID, &user.FullName, &user.Email, &user.IsActive, 
+            &user.CreatedAt, &user.UpdatedAt,
+        )
+        if err != nil {
+            return nil, err
+        }
+        users = append(users, user)
+    }
+
+    // 3. Cek error saat iterasi selesai
+    if err = rows.Err(); err != nil {
+        return nil, err
+    }
+
+    // Mengembalikan slice users (yang mungkin kosong jika tidak ada data)
+    return users, nil
+}
+
+func (r *userRepository) UpdateUserStatus(userID uuid.UUID, isActive bool) error {
+    query := `UPDATE users SET is_active = $1 WHERE id = $2`
+    _, err := r.db.Exec(query, isActive, userID)
+    return err
 }

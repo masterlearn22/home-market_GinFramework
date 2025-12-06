@@ -35,6 +35,8 @@ func SetupRoute(app *gin.Engine, db *sql.DB,mongoclient *mongo.Client) {
 	logRepo := mongorepo.NewLogRepository(mongoclient)
 	itemService := service.NewItemService(itemRepo,logRepo)
 	itemHandler := httpHandler.NewItemHandler(itemService)
+	adminService := service.NewAdminService(userRepo, itemRepo)
+    adminHandler := httpHandler.NewAdminHandler(adminService)
 
 	// --- 3. Definisikan group route ---
 	api := app.Group("/api")
@@ -74,4 +76,19 @@ func SetupRoute(app *gin.Engine, db *sql.DB,mongoclient *mongo.Client) {
     
     // Endpoint Buyer/Admin (FR-ORDER-04)
     orders.GET("/:id/tracking", middleware.AuthRequired(), itemHandler.GetOrderTracking)
+
+
+	// --- Admin Group ---
+    admin := api.Group("/admin")
+    // Pasang AuthRequired dan RoleAllowed global untuk semua endpoint Admin
+    admin.Use(middleware.AuthRequired(), middleware.RoleAllowed("admin")) 
+    
+    // FR-ADMIN-01: List Users
+    admin.GET("/users", adminHandler.ListUsers)
+    
+    // FR-ADMIN-03: Blokir User
+    admin.PATCH("/users/:id/status", adminHandler.BlockUser) 
+    
+    // FR-ADMIN-02: Moderasi Barang
+    admin.PATCH("/items/:id/moderate", adminHandler.ModerateItem)
 }
