@@ -1,5 +1,3 @@
-// [internal/service/admin_service.go]
-
 package service
 
 import (
@@ -10,16 +8,24 @@ import (
 )
 
 type AdminService struct {
-	userRepo repo.UserRepository // Untuk FR-ADMIN-01, FR-ADMIN-03
-	itemRepo repo.ItemRepository // Untuk FR-ADMIN-02 (Moderasi Item)
+	userRepo repo.UserRepository 
+	itemRepo repo.ItemRepository 
 }
 
-// Pastikan Anda meneruskan kedua repo ini saat inisialisasi
 func NewAdminService(userRepo repo.UserRepository, itemRepo repo.ItemRepository) *AdminService {
 	return &AdminService{userRepo: userRepo, itemRepo: itemRepo}
 }
 
-// FR-ADMIN-01: Manajemen User (List Users)
+// @Summary      Get List of All Users
+// @Description  Retrieves a list of all users in the system (Admin access only).
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Success      200  {array}   entity.User
+// @Failure      403  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /admin/users [get]
 func (s *AdminService) ListUsers(role string) ([]entity.User, error) {
 	if role != "admin" {
 		return nil, errors.New("unauthorized: admin access required")
@@ -27,7 +33,19 @@ func (s *AdminService) ListUsers(role string) ([]entity.User, error) {
 	return s.userRepo.ListAllUsers()
 }
 
-// FR-ADMIN-03: Blokir User
+// @Summary      Block or Unblock User Account
+// @Description  Sets the 'is_active' status of a target user (Admin access only).
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Target User ID"
+// @Param        input body entity.UpdateUserStatusInput true "Status update (is_active: true/false)"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /admin/users/{id}/status [patch]
 func (s *AdminService) BlockUser(adminRole string, targetUserID uuid.UUID, isActive bool) error {
 	if adminRole != "admin" {
 		return errors.New("unauthorized: admin access required")
@@ -36,7 +54,19 @@ func (s *AdminService) BlockUser(adminRole string, targetUserID uuid.UUID, isAct
 	return s.userRepo.UpdateUserStatus(targetUserID, isActive)
 }
 
-// FR-ADMIN-02: Moderasi Barang (Set status='inactive')
+// @Summary      Moderate Item (Set Inactive)
+// @Description  Sets the status of a specific item to 'inactive' due to policy violation (Admin access only).
+// @Tags         Admin
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Item ID to moderate"
+// @Success      200  {object}  map[string]interface{}
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]interface{}
+// @Failure      404  {object}  map[string]interface{}
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /admin/items/{id}/moderate [patch]
 func (s *AdminService) ModerateItem(adminRole string, itemID uuid.UUID) error {
 	if adminRole != "admin" {
 		return errors.New("unauthorized: admin access required")
