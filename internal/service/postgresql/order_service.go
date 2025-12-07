@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"time"
-
 	entity "home-market/internal/domain"
 	mongorepo "home-market/internal/repository/mongodb"
 	repo "home-market/internal/repository/postgresql"
@@ -28,7 +27,6 @@ func NewOrderService(orderRepo repo.OrderRepository, shopRepo repo.ShopRepositor
 	}
 }
 
-// Helper function untuk membuat dan menyimpan notifikasi (FR-NOTIF)
 func (s *OrderService) createAndSaveNotification(userID uuid.UUID, title string, message string, notiType string, relatedID uuid.UUID) {
     noti := &entity.Notification{
         ID: primitive.NewObjectID(),
@@ -46,12 +44,34 @@ func (s *OrderService) createAndSaveNotification(userID uuid.UUID, title string,
     }
 }
 
-// FR-BUYER-01 & FR-BUYER-02: Melihat & Filter Marketplace
+// @Summary      Get Marketplace Items
+// @Description  Retrieves a list of active items from the marketplace, filtered by keyword, category, and price range.
+// @Tags         Marketplace
+// @Accept       json
+// @Produce      json
+// @Param        keyword query string false "Search keyword"
+// @Param        category_id query string false "Filter by Category ID (UUID)"
+// @Param        min_price query number false "Minimum price filter"
+// @Param        max_price query number false "Maximum price filter"
+// @Param        limit query integer false "Limit (default 10)"
+// @Param        offset query integer false "Offset"
+// @Success      200  {array}   entity.Item
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /market/items [get]
 func (s *OrderService) GetMarketplaceItems(filter entity.ItemFilter) ([]entity.Item, error) {
 	return s.orderRepo.GetMarketItems(filter)
 }
 
-// FR-BUYER-03: Melihat Detail Barang
+// @Summary      Get Item Detail
+// @Description  Retrieves detailed information for a single active item in the marketplace.
+// @Tags         Marketplace
+// @Accept       json
+// @Produce      json
+// @Param        id   path      string  true  "Item ID"
+// @Success      200  {object}  entity.Item
+// @Failure      404  {object}  map[string]interface{} "Item not found or inactive"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /market/items/{id} [get]
 func (s *OrderService) GetItemDetail(itemID uuid.UUID) (*entity.Item, error) {
 	item, err := s.orderRepo.GetItemForOrder(itemID)
 	if err != nil {
@@ -63,10 +83,19 @@ func (s *OrderService) GetItemDetail(itemID uuid.UUID) (*entity.Item, error) {
 	return item, nil
 }
 
-// FR-BUYER-04 & FR-NOTIF-03: Membuat Order
+// @Summary      Create New Order
+// @Description  Allows a Buyer to create a new order, performing stock validation and decrement within a transaction. Supports only single-shop orders currently.
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        input body entity.CreateOrderInput true "Order details"
+// @Success      201  {object}  entity.Order
+// @Failure      400  {object}  map[string]interface{} "Validation error (stock, multi-shop)"
+// @Failure      403  {object}  map[string]interface{} "Forbidden (not buyer)"
+// @Failure      500  {object}  map[string]interface{}
+// @Router       /orders [post]
 func (s *OrderService) CreateOrder(buyerID uuid.UUID, input entity.CreateOrderInput) (*entity.Order, error) {
-	
-	// Logika Validasi Stok, Harga, dan Grouping per Toko (Dipindahkan dari ItemService lama)
 	shopItems := make(map[uuid.UUID][]entity.OrderItem)
 	
 	for _, itemInput := range input.Items {
@@ -99,13 +128,11 @@ func (s *OrderService) CreateOrder(buyerID uuid.UUID, input entity.CreateOrderIn
 		break
 	}
     
-    // Ambil ID Pemilik Toko (ShopRepo)
     shopOwnerID, err := s.shopRepo.GetShopOwnerID(shopID) 
     if err != nil && err.Error() != "shop not found" {
         log.Printf("Warning: failed to retrieve shop owner ID for notification: %v", err)
     }
 
-	// 3. Buat Struct Order
 	order := &entity.Order{
 		ID: uuid.New(), BuyerID: buyerID, ShopID: shopID, TotalPrice: totalPrice, Status: "pending", 
 		ShippingAddress: input.ShippingAddress, ShippingCourier: input.ShippingCourier,
@@ -116,12 +143,10 @@ func (s *OrderService) CreateOrder(buyerID uuid.UUID, input entity.CreateOrderIn
 		itemsForOrder[i].ID = uuid.New()
 	}
 
-	// 4. Jalankan Transaksi
 	if err := s.orderRepo.CreateOrderTransaction(order, itemsForOrder); err != nil {
 		return nil, err
 	}
     
-    // --- Notification Trigger (FR-NOTIF-03) ---
     if shopOwnerID != uuid.Nil {
         s.createAndSaveNotification(
             shopOwnerID, "Order Baru Masuk",
@@ -129,13 +154,22 @@ func (s *OrderService) CreateOrder(buyerID uuid.UUID, input entity.CreateOrderIn
             "new_order", order.ID,
         )
     }
-    // --- End Notification Trigger ---
-
-
 	return order, nil
 }
 
-// FR-ORDER-02 & FR-NOTIF-02: Update Status Order
+// @Summary      Update Order Status
+// @Description  Allows Seller or Admin to update the status of an order.
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Order ID"
+// @Param        input body entity.UpdateOrderStatusInput true "New status value (e.g., paid, processing, cancelled)"
+// @Success      200  {object}  entity.Order "Returns updated order"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]interface{} "Unauthorized"
+// @Failure      404  {object}  map[string]interface{} "Order not found"
+// @Router       /orders/{id}/status [patch]
 func (s *OrderService) UpdateOrderStatus(userID uuid.UUID, role string, orderID uuid.UUID, status string) (*entity.Order, error) {
 	if !ValidOrderStatuses[status] {
 		return nil, errors.New("invalid status value")
@@ -144,8 +178,6 @@ func (s *OrderService) UpdateOrderStatus(userID uuid.UUID, role string, orderID 
     order, err := s.orderRepo.GetOrderByID(orderID)
 	if err != nil { return nil, err }
 	if order == nil { return nil, errors.New("order not found") }
-
-	// Logika otorisasi Seller/Admin (ShopRepo)
 	shop, _ := s.shopRepo.GetByUserID(userID)
 	isOwner := shop != nil && order.ShopID == shop.ID
 	isAdmin := role == "admin"
@@ -153,17 +185,9 @@ func (s *OrderService) UpdateOrderStatus(userID uuid.UUID, role string, orderID 
 	if !isOwner && !isAdmin {
 		return nil, errors.New("unauthorized: you are not the shop owner or admin")
 	}
-
-	// oldStatus := order.Status
-
-	// Update status (OrderRepo)
 	if err := s.orderRepo.UpdateOrderStatus(orderID, status); err != nil { return nil, err }
     order.Status = status 
 
-    // Simpan Riwayat Status (LogRepo)
-	// Asumsi Anda akan memanggil s.logRepo.SaveHistoryStatus di sini
-    
-	// Trigger Notifikasi (FR-NOTIF-02)
     s.createAndSaveNotification(
         order.BuyerID, "Status Order Berubah",
         fmt.Sprintf("Status order Anda #%s telah diperbarui menjadi %s.", orderID.String()[:8], status),
@@ -173,28 +197,34 @@ func (s *OrderService) UpdateOrderStatus(userID uuid.UUID, role string, orderID 
 	return order, nil
 }
 
-// FR-ORDER-03 & FR-NOTIF-02: Input Nomor Resi Pengiriman
+// @Summary      Input Shipping Receipt
+// @Description  Allows Seller or Admin to input courier and receipt number, automatically setting status to 'shipped'.
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Order ID"
+// @Param        input body entity.InputShippingReceiptInput true "Courier and Receipt details"
+// @Success      200  {object}  entity.Order "Returns updated order"
+// @Failure      400  {object}  map[string]interface{}
+// @Failure      403  {object}  map[string]interface{} "Unauthorized"
+// @Failure      404  {object}  map[string]interface{} "Order not found"
+// @Router       /orders/{id}/shipping [post]
 func (s *OrderService) InputShippingReceipt(userID uuid.UUID, role string, orderID uuid.UUID, input entity.InputShippingReceiptInput) (*entity.Order, error) {
     order, err := s.orderRepo.GetOrderByID(orderID)
 	if err != nil { return nil, err }
 	if order == nil { return nil, errors.New("order not found") }
 
-	// Logika otorisasi Seller/Admin (ShopRepo)
 	shop, _ := s.shopRepo.GetByUserID(userID)
 	isOwner := shop != nil && order.ShopID == shop.ID
 	isAdmin := role == "admin"
 	
 	if !isOwner && !isAdmin { return nil, errors.New("unauthorized") }
 
-	// Update shipment (OrderRepo)
 	if err := s.orderRepo.UpdateOrderShipment(orderID, input.ShippingCourier, input.ShippingReceipt); err != nil { return nil, err }
     order.ShippingCourier = input.ShippingCourier 
     order.ShippingReceipt = input.ShippingReceipt
     order.Status = "shipped"
-
-    // Simpan Riwayat Status (LogRepo)
-    
-	// Trigger Notifikasi (FR-NOTIF-02)
     s.createAndSaveNotification(
         order.BuyerID, "Barang Anda Dikirim",
         fmt.Sprintf("Order Anda #%s telah dikirim dengan resi %s.", orderID.String()[:8], input.ShippingReceipt),
@@ -204,22 +234,28 @@ func (s *OrderService) InputShippingReceipt(userID uuid.UUID, role string, order
 	return order, nil
 }
 
-// FR-ORDER-04: Tracking Order (Buyer)
+// @Summary      Get Order Tracking Details
+// @Description  Retrieves order details and associated items for tracking purposes (Buyer or Admin access).
+// @Tags         Orders
+// @Accept       json
+// @Produce      json
+// @Security     ApiKeyAuth
+// @Param        id   path      string  true  "Order ID"
+// @Success      200  {object}  map[string]interface{} "Returns order and order_items"
+// @Failure      403  {object}  map[string]interface{} "Unauthorized"
+// @Failure      404  {object}  map[string]interface{} "Order not found"
+// @Router       /orders/{id}/tracking [get]
 func (s *OrderService) GetOrderTracking(userID uuid.UUID, role string, orderID uuid.UUID) (*entity.Order, []entity.OrderItem, error) {
 	order, err := s.orderRepo.GetOrderByID(orderID)
 	if err != nil { return nil, nil, err }
 	if order == nil { return nil, nil, errors.New("order not found") }
 
-	// Logika otorisasi Buyer/Admin
 	isAdmin := role == "admin"
 	isBuyer := order.BuyerID == userID
 	if !isBuyer && !isAdmin { return nil, nil, errors.New("unauthorized: access denied") }
-
-	// Ambil order items (OrderRepo)
 	items, err := s.orderRepo.GetOrderItems(orderID)
 	if err != nil { return order, nil, err }
-	
-	// Tambahan: Ambil history status dari MongoDB
+
 
 	return order, items, nil
 }

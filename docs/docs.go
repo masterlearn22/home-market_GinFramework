@@ -637,9 +637,9 @@ const docTemplate = `{
                 }
             }
         },
-        "/market/items/{id}": {
+        "/market/items": {
             "get": {
-                "description": "Retrieves detailed information for a single item, ensuring it is active and available.",
+                "description": "Retrieves a list of active items from the marketplace, filtered by keyword, category, and price range.",
                 "consumes": [
                     "application/json"
                 ],
@@ -649,11 +649,82 @@ const docTemplate = `{
                 "tags": [
                     "Marketplace"
                 ],
-                "summary": "Get Item Detail (Marketplace View)",
+                "summary": "Get Marketplace Items",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Item ID to retrieve",
+                        "description": "Search keyword",
+                        "name": "keyword",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by Category ID (UUID)",
+                        "name": "category_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Minimum price filter",
+                        "name": "min_price",
+                        "in": "query"
+                    },
+                    {
+                        "type": "number",
+                        "description": "Maximum price filter",
+                        "name": "max_price",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Limit (default 10)",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Offset",
+                        "name": "offset",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/entity.Item"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/market/items/{id}": {
+            "get": {
+                "description": "Retrieves detailed information for a single active item in the marketplace.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Marketplace"
+                ],
+                "summary": "Get Item Detail",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Item ID",
                         "name": "id",
                         "in": "path",
                         "required": true
@@ -1013,6 +1084,252 @@ const docTemplate = `{
                     }
                 }
             }
+        },
+        "/orders": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Allows a Buyer to create a new order, performing stock validation and decrement within a transaction. Supports only single-shop orders currently.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Create New Order",
+                "parameters": [
+                    {
+                        "description": "Order details",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.CreateOrderInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Validation error (stock, multi-shop)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden (not buyer)",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/shipping": {
+            "post": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Allows Seller or Admin to input courier and receipt number, automatically setting status to 'shipped'.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Input Shipping Receipt",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Courier and Receipt details",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.InputShippingReceiptInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns updated order",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Order not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/status": {
+            "patch": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Allows Seller or Admin to update the status of an order.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Update Order Status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New status value (e.g., paid, processing, cancelled)",
+                        "name": "input",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/entity.UpdateOrderStatusInput"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns updated order",
+                        "schema": {
+                            "$ref": "#/definitions/entity.Order"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Order not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/orders/{id}/tracking": {
+            "get": {
+                "security": [
+                    {
+                        "ApiKeyAuth": []
+                    }
+                ],
+                "description": "Retrieves order details and associated items for tracking purposes (Buyer or Admin access).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Orders"
+                ],
+                "summary": "Get Order Tracking Details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Order ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Returns order and order_items",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "404": {
+                        "description": "Order not found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
         }
     },
     "definitions": {
@@ -1043,6 +1360,43 @@ const docTemplate = `{
             ],
             "properties": {
                 "name": {
+                    "type": "string"
+                }
+            }
+        },
+        "entity.CreateOrderInput": {
+            "type": "object",
+            "required": [
+                "items",
+                "shipping_address",
+                "shipping_courier"
+            ],
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/entity.OrderItemInput"
+                    }
+                },
+                "shipping_address": {
+                    "type": "string"
+                },
+                "shipping_courier": {
+                    "type": "string"
+                }
+            }
+        },
+        "entity.InputShippingReceiptInput": {
+            "type": "object",
+            "required": [
+                "shipping_courier",
+                "shipping_receipt"
+            ],
+            "properties": {
+                "shipping_courier": {
+                    "type": "string"
+                },
+                "shipping_receipt": {
                     "type": "string"
                 }
             }
@@ -1145,6 +1499,61 @@ const docTemplate = `{
                 }
             }
         },
+        "entity.Order": {
+            "type": "object",
+            "properties": {
+                "buyerID": {
+                    "type": "string"
+                },
+                "createdAt": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "string"
+                },
+                "shippingAddress": {
+                    "type": "string"
+                },
+                "shippingCourier": {
+                    "type": "string"
+                },
+                "shippingReceipt": {
+                    "type": "string"
+                },
+                "shopID": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "pending, paid, processing, shipped, completed, cancelled",
+                    "type": "string"
+                },
+                "totalPrice": {
+                    "type": "number"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "entity.OrderItemInput": {
+            "type": "object",
+            "required": [
+                "item_id",
+                "quantity"
+            ],
+            "properties": {
+                "item_id": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer",
+                    "minimum": 1
+                }
+            }
+        },
         "entity.RefreshResponse": {
             "type": "object",
             "properties": {
@@ -1179,6 +1588,21 @@ const docTemplate = `{
                 "stock": {
                     "type": "integer",
                     "minimum": 0
+                }
+            }
+        },
+        "entity.UpdateOrderStatusInput": {
+            "type": "object",
+            "required": [
+                "new_status"
+            ],
+            "properties": {
+                "new_status": {
+                    "type": "string"
+                },
+                "note": {
+                    "description": "Opsional: catatan perubahan status",
+                    "type": "string"
                 }
             }
         },
