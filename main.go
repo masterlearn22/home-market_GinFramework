@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	config "home-market/internal/config"
+	_ "database/sql"
 	"home-market/internal/delivery/http/route"
 )
 
@@ -11,6 +12,7 @@ import (
 // @description     This is the API documentation for the Home Market project.
 // @host      localhost:8080
 // @BasePath  /api
+// @insert "database/sql"
 // @securityDefinitions.apikey ApiKeyAuth
 // @in header
 // @name Authorization

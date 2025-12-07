@@ -55,6 +55,36 @@ definitions:
       user:
         $ref: '#/definitions/entity.UserResp'
     type: object
+  entity.Offer:
+    properties:
+      agreed_price:
+        type: number
+      condition:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      expectedPrice:
+        type: number
+      giverID:
+        type: string
+      id:
+        type: string
+      imageURL:
+        type: string
+      itemName:
+        type: string
+      location:
+        type: string
+      sellerID:
+        type: string
+      status:
+        description: pending, accepted, rejected, paid
+        type: string
+      updatedAt:
+        type: string
+    type: object
   entity.RefreshResponse:
     properties:
       token:
@@ -579,6 +609,230 @@ paths:
       summary: Get Item Detail (Marketplace View)
       tags:
       - Marketplace
+  /offers:
+    post:
+      consumes:
+      - multipart/form-data
+      description: Allows a Giver to create an offer for an item, optionally targeting
+        a specific Seller. Requires multipart/form-data.
+      parameters:
+      - description: Name of the item being offered
+        in: formData
+        name: item_name
+        required: true
+        type: string
+      - description: Description of the item
+        in: formData
+        name: description
+        type: string
+      - description: Expected price in IDR
+        in: formData
+        name: expected_price
+        required: true
+        type: number
+      - description: Item condition (e.g., new, used)
+        in: formData
+        name: condition
+        required: true
+        type: string
+      - description: Giver's location
+        in: formData
+        name: location
+        required: true
+        type: string
+      - description: Optional Seller ID to target
+        in: formData
+        name: seller_id
+        type: string
+      - description: Item image file
+        in: formData
+        name: images
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.Offer'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create a New Offer
+      tags:
+      - Offers
+  /offers/{id}/accept:
+    post:
+      consumes:
+      - application/json
+      description: Allows the Seller to accept a pending offer, setting the agreed
+        price and generating a draft item for their shop.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Returns the updated offer and the newly created item draft
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Unauthorized or not owner
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Offer not found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Offer status is not pending
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Accept Offer and Create Item Draft
+      tags:
+      - Offers
+  /offers/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Allows the Seller to reject a pending offer, setting the status
+        to 'rejected'.
+      parameters:
+      - description: Offer ID to reject
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/entity.Offer'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Unauthorized or not owner
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Offer not found
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Offer status is not pending
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Reject Offer
+      tags:
+      - Offers
+  /offers/inbox:
+    get:
+      consumes:
+      - application/json
+      description: Allows a Seller to view pending offers directed to them or general
+        open offers.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.Offer'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: View Seller Offer Inbox
+      tags:
+      - Offers
+  /offers/my:
+    get:
+      consumes:
+      - application/json
+      description: Allows the Giver to view the status of all offers they have created.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/entity.Offer'
+            type: array
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: View My Outgoing Offers
+      tags:
+      - Offers
 securityDefinitions:
   ApiKeyAuth:
     in: header
