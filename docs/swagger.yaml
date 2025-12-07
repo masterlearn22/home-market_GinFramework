@@ -35,6 +35,18 @@ definitions:
     - shipping_address
     - shipping_courier
     type: object
+  entity.CreateShopInput:
+    properties:
+      address:
+        type: string
+      description:
+        type: string
+      name:
+        type: string
+    required:
+    - address
+    - name
+    type: object
   entity.InputShippingReceiptInput:
     properties:
       shipping_courier:
@@ -150,6 +162,23 @@ definitions:
   entity.RefreshResponse:
     properties:
       token:
+        type: string
+    type: object
+  entity.Shop:
+    properties:
+      address:
+        type: string
+      createdAt:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      name:
+        type: string
+      updatedAt:
+        type: string
+      userID:
         type: string
     type: object
   entity.UpdateItemInput:
@@ -1117,6 +1146,51 @@ paths:
       summary: Get Order Tracking Details
       tags:
       - Orders
+  /shops:
+    post:
+      consumes:
+      - application/json
+      description: Allows a registered Seller to create their shop. A user can only
+        own one shop.
+      parameters:
+      - description: Shop details (Name, Address, Description)
+        in: body
+        name: input
+        required: true
+        schema:
+          $ref: '#/definitions/entity.CreateShopInput'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/entity.Shop'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden (not seller)
+          schema:
+            additionalProperties: true
+            type: object
+        "409":
+          description: Conflict (shop already exists)
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Create Seller Shop
+      tags:
+      - Shop
 securityDefinitions:
   ApiKeyAuth:
     in: header
